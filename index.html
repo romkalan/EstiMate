@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>EstiMate · универсальный конструктор смет</title>
+    <!-- Библиотеки -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        :root {
+            --bg: #f8fafc; --surface: #ffffff; --border: #e2e8f0;
+            --text: #0f172a; --text-secondary: #475569; --accent: #0f172a;
+            --hover: #f1f5f9; --shadow: 0 1px 3px rgba(0,0,0,0.05);
+            --modal-overlay: rgba(0,0,0,0.3);
+            --input-bg: #ffffff;
+            --input-border: #e2e8f0;
+        }
+        body.dark {
+            --bg: #0b1120; --surface: #1e293b; --border: #334155;
+            --text: #f1f5f9; --text-secondary: #94a3b8; --accent: #e2e8f0;
+            --hover: #1e293b; --shadow: 0 4px 6px -2px rgba(0,0,0,0.3);
+            --modal-overlay: rgba(0,0,0,0.6);
+            --input-bg: #0f172a;
+            --input-border: #334155;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg); color: var(--text);
+            margin: 0; min-height: 100vh; transition: background 0.2s;
+            line-height: 1.5; padding: 16px 24px;
+        }
+        .app { max-width: 1400px; margin:0 auto; }
+        .btn {
+            background: var(--surface); border:1px solid var(--border);
+            padding: 8px 16px; border-radius: 30px; font-size:14px; font-weight:500;
+            color: var(--text); cursor:pointer; display:inline-flex; align-items:center;
+            gap:6px; transition: 0.15s; box-shadow: var(--shadow);
+        }
+        .btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+        .btn-icon { padding:8px 12px; }
+        .theme-toggle { display:flex; background:var(--surface); border:1px solid var(--border); border-radius:40px; padding:3px; }
+        .theme-opt { padding:6px 12px; border-radius:30px; cursor:pointer; }
+        .theme-opt.active { background:var(--accent); color:var(--bg); }
+        .presets-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:20px; margin:30px 0; }
+        .preset-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:24px; cursor:pointer; transition:0.15s; position: relative; }
+        .preset-card:hover { background:var(--hover); transform:translateY(-2px); }
+        .preset-card .delete-card {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 24px;
+            height: 24px;
+            border-radius: 20px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0.6;
+            transition: 0.15s;
+            color: var(--text-secondary);
+        }
+        .preset-card .delete-card:hover {
+            opacity: 1;
+            background: var(--hover);
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+        .editor-header { display:flex; align-items:center; justify-content: space-between; gap:15px; margin-bottom:20px; }
+        .smeta-name-input {
+            font-size: 18px; font-weight:600; background:transparent; border:none;
+            border-bottom:2px solid transparent; outline:none; color:var(--text);
+            min-width: 330px; width: auto; max-width: 550px;
+        }
+        .smeta-name-input:focus { border-bottom-color:var(--accent); }
+        .total-badge { font-size:24px; font-weight:600; background:var(--surface); padding:6px 20px; border-radius:40px; border:1px solid var(--border); margin-bottom: 20px;}
+        .tree-container { background:var(--surface); border-radius:20px; border:1px solid var(--border); padding:0; overflow-x: auto; }
+        .tree-header {
+            display:flex; gap: 16px; align-items:center; padding:8px 20px 8px 12px;
+            background:var(--surface); border-bottom:2px solid var(--border);
+            font-weight:600; color:var(--text-secondary); border-radius:20px;
+            min-width: max-content;
+        }
+        .block { margin:0; min-width: max-content; }
+        .block-header { display:flex; align-items:center; padding:12px 20px 12px 12px; border-bottom:1px solid var(--border); cursor:default; min-width: max-content;}
+        .block-header:hover { background:var(--hover); }
+        .block-content { padding-left:32px; }
+        .drag-handle { margin-right:12px; color:var(--text-secondary); cursor:grab; }
+        .collapse-icon { width:24px; cursor:pointer; }
+        .block-title { flex:1; min-width: 180px; }
+        .block-title-input {
+            width: 100%;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid transparent;
+            border-radius: 0;
+            padding: 4px 0;
+            color: var(--text);
+        }
+        .block-title-input:focus { border-bottom-color: var(--accent); }
+        .block-title-input.nested-block-title-input { width: 50%; }
+        .block-sum { font-family:monospace; margin-right:20px; color:var(--text-secondary); }
+
+        input, select {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 10px;
+            padding: 8px 10px;
+            color: var(--text);
+            font-size: 14px;
+            transition: border 0.15s, box-shadow 0.15s;
+            outline: none;
+            font-family: 'Inter', sans-serif;
+        }
+        input:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
+        }
+        body.dark input:focus, body.dark select:focus {
+            box-shadow: 0 0 0 2px rgba(226, 232, 240, 0.2);
+        }
+        input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        select {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23475569" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 14px;
+            appearance: none;
+            padding-right: 30px;
+        }
+        select option { background: var(--surface); color: var(--text); }
+
+        .block-actions, .item-actions { width: 120px; display: flex; justify-content: flex-end; gap: 12px; flex-shrink: 0; }
+        .block-actions { opacity: 0.6; }
+        .block-header:hover .block-actions { opacity: 1; }
+        .item-row { display:flex; gap:16px; align-items:center; padding:10px 20px 10px 12px; border-bottom:1px solid var(--border); min-width: max-content; }
+        .item-row:hover { background:var(--hover); }
+        .item-drag {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            margin-right: 12px;
+            color: var(--text-secondary);
+            cursor: grab;
+            flex-shrink: 0;
+        }
+        .item-field { flex-shrink: 0; }
+        .item-name { flex:3; min-width:180px; }
+        .item-name input { width:100%; background:transparent; border:none; border-bottom:1px solid transparent; padding:6px 0; outline:none; color:var(--text); }
+        .item-name input:focus { border-bottom-color:var(--accent); }
+        .item-qty, .item-price, .item-unit { width:100px }
+        .item-qty input, .item-price input, .item-unit select { width:100%; background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 10px; text-align:right; color:var(--text); }
+        .item-unit select { text-align:right; }
+        .item-cost { width:120px; text-align:right; font-family:monospace; margin: 0; flex-shrink: 0; }
+        .item-note input { width: 180px; }
+        .item-title { text-align:center; margin: 0; }
+        .add-btn { margin:8px 20px 8px 48px; color:var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+        .modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:var(--modal-overlay); align-items:center; justify-content:center; z-index:1000; }
+        .modal.active { display:flex; }
+        .modal-content { background:var(--surface); border-radius:24px; padding:24px; max-width:600px; width:90%; max-height:80vh; overflow-y:auto; border:1px solid var(--border); position: relative; }
+        .sidebar { position:fixed; right:0; top:0; bottom:0; width:320px; background:var(--surface); border-left:1px solid var(--border); transform:translateX(100%); transition:0.2s; padding:20px; z-index:500; overflow-y:auto; }
+        .sidebar.open { transform:translateX(0); }
+        .analytics-panel { position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--border); padding:20px; transform:translateY(100%); transition:0.2s; z-index:400; max-height:60vh; overflow-y:auto; }
+        .analytics-panel.open { transform:translateY(0); }
+        .analytics-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .analytics-panel h3 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .analytics-panel .btn-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.15s;
+        }
+        .analytics-panel .btn-icon:hover {
+            border-color: var(--accent);
+            color: var(--text);
+            background: var(--hover);
+        }
+        body.dark .analytics-panel {
+            box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
+        }
+        .field-item { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+        .field-item input { flex:1; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
+        .close-icon { cursor:pointer; margin-left:auto; }
+        .print-only { display: none; }
+
+        /* Стили для печати (PDF) */
+        @media print {
+            body * { visibility: hidden; }
+            #printContainer, #printContainer * { visibility: visible; }
+            #printContainer {
+                position: absolute; left: 0; top: 0; width: 100%; padding: 20px;
+                background: white; color: black; display: block;
+            }
+            .print-table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                font-family: 'Inter', sans-serif;
+                table-layout: fixed; /* Фиксированная ширина колонок */
+            }
+            .print-table th, .print-table td { 
+                border: 1px solid #ccc; 
+                padding: 8px 12px; 
+                text-align: left; 
+                white-space: normal;
+                word-break: break-word;
+            }
+            /* Ширина колонок для предсказуемого отображения */
+            .print-table th:nth-child(1) { width: 29%; } /* Наименование */
+            .print-table th:nth-child(2) { width: 11%; } /* Кол-во */
+            .print-table th:nth-child(3) { width: 10%; } /* Ед. */
+            .print-table th:nth-child(4) { width: 14%; } /* Цена */
+            .print-table th:nth-child(5) { width: 21%; } /* Примечание */
+            .print-table th:nth-child(6) { width: 15%; } /* Стоимость */
+
+            /* Длинные названия переносятся на следующую строку с ростом высоты строки */
+            .print-table td:nth-child(1),
+            .print-table th:nth-child(1) {
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            
+            .print-table th { background: #f1f5f9; font-weight: 600; }
+            .print-table .block-row { font-weight: 700; background: #eef2ff; }
+            .print-header { margin-bottom: 20px; }
+            .print-page-break { page-break-before: always; break-before: page; }
+            .print-analytics-card {
+                margin-bottom: 20px;
+                border: 1px solid #d1d5db;
+                border-radius: 12px;
+                padding: 14px 16px;
+                background: #f8fafc;
+            }
+            .print-analytics-title {
+                font-size: 20px;
+                font-weight: 700;
+                margin-bottom: 12px;
+            }
+            .print-analytics-grid {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 12px;
+                margin-bottom: 16px;
+            }
+            .print-analytics-item {
+                border: 1px solid #d1d5db;
+                border-radius: 10px;
+                padding: 10px 12px;
+                background: #ffffff;
+            }
+            .print-analytics-item .label {
+                display: block;
+                color: #475569;
+                font-size: 12px;
+                margin-bottom: 4px;
+            }
+            .print-analytics-item .value {
+                font-weight: 700;
+                font-size: 16px;
+            }
+        }
+
+        /* Стили модального окна предупреждения */
+        .warning-modal .modal-content {
+            max-width: 450px;
+            text-align: center;
+        }
+        .warning-modal-title {
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .warning-modal .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 24px;
+        }
+        .warning-modal .btn {
+            min-width: 120px;
+            justify-content: center;
+            text-align: center;
+            padding: 10px 16px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+        .warning-modal .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+            background: var(--hover);
+            border-color: var(--accent);
+            color: var(--text);
+        }
+        .warning-modal .btn.btn-primary:hover {
+            background: var(--accent);
+            color: var(--bg);
+            opacity: 0.92;
+        }
+        /* В модалке несохраненных изменений обе кнопки выглядят единообразно */
+        #overwriteWarningModal .modal-buttons .btn,
+        #overwriteWarningModal .modal-buttons .btn.btn-primary {
+            min-width: 190px;
+            background: var(--accent);
+            color: var(--bg);
+            border: 1px solid var(--accent);
+        }
+        #overwriteWarningModal .modal-buttons .btn:hover,
+        #overwriteWarningModal .modal-buttons .btn.btn-primary:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg);
+            opacity: 0.92;
+        }
+        body.dark .warning-modal .btn:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+        }
+        .warning-modal .close-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.15s;
+        }
+        .warning-modal .close-icon:hover {
+            color: #ef4444;
+            border-color: #ef4444;
+            background: var(--hover);
+        }
+        .warning-modal .modal-select-wrap { margin-top: 14px; }
+        .warning-modal .modal-select {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 12px;
+            padding: 10px 12px;
+            color: var(--text);
+            font-size: 14px;
+        }
+        .warning-modal .modal-select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
+        }
+        body.dark .warning-modal .modal-select:focus {
+            box-shadow: 0 0 0 2px rgba(226, 232, 240, 0.2);
+        }
+    </style>
+</head>
+<body>
+<div class="app" id="app">
+    <!-- Стартовый экран -->
+    <div id="presetScreen">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h1 style="font-size:32px; font-weight:700;">📊 EstiMate</h1>
+            <div class="theme-toggle" id="themeTogglePreset"></div>
+        </div>
+        <p style="margin:20px 0 10px; color:var(--text-secondary);">Выберите шаблон или начните с чистого листа</p>
+        <div class="presets-grid" id="presetsContainer"></div>
+        
+        <h2 style="margin-top:40px;">📌 Сохранённые сметы</h2>
+        <div class="presets-grid" id="savedSmetasContainer"></div>
+    </div>
+
+    <!-- Редактор -->
+    <div id="editorScreen" style="display:none;">
+        <div class="editor-header">
+            <button class="btn" id="backToPresets">← К шаблонам</button>
+            <input type="text" class="smeta-name-input" id="smetaName" value="Новая смета">
+            <div style="flex:1"></div>
+            <button class="btn" id="saveSmetaBtn" title="Сохранить в список">💾 Сохранить</button>
+            <div style="position:relative;">
+                <button class="btn" id="exportDropdownBtn">📤 Экспорт</button>
+                <div id="exportMenu" style="position:absolute; top:100%; right:0; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:8px; display:none; flex-direction:column; gap:4px; z-index:10;">
+                    <button class="btn" id="exportXlsx">Excel (.xlsx)</button>
+                    <button class="btn" id="exportPdf">PDF (печать)</button>
+                </div>
+            </div>
+            <div class="theme-toggle" id="themeToggleEditor"></div>
+        </div>
+        <div class="total-badge" id="grandTotal">0 ₽</div>
+        <div style="display:flex; gap:12px; margin-bottom:16px;">
+            <button class="btn" id="addRootBlockBtn">+ Добавить блок</button>
+            <button class="btn" id="showAnalyticsBtn">📊 Аналитика</button>
+        </div>
+        <div class="tree-container" id="estimateTree"></div>
+    </div>
+
+    <!-- Панель аналитики -->
+    <div class="analytics-panel" id="analyticsPanel">
+        <div class="analytics-panel-header">
+            <h3>📊 Аналитика по смете</h3>
+            <button class="btn-icon" id="closeAnalytics">✕</button>
+        </div>
+        <div style="display:flex; gap:30px; margin-top:20px; flex-wrap:wrap;">
+            <div style="width:250px;"><canvas id="budgetChart"></canvas></div>
+            <div id="analyticsSummary"></div>
+        </div>
+    </div>
+
+    <!-- Модальное окно предупреждения о потере данных -->
+    <div class="modal warning-modal" id="overwriteWarningModal">
+        <div class="modal-content">
+            <button class="btn-icon close-icon" style="position:absolute; top:16px; right:16px;" id="closeWarningModalBtn">✕</button>
+            <h3 class="warning-modal-title"><span>⚠️</span><span>Внимание</span></h3>
+            <p>У вас есть несохранённые изменения в текущей смете. При выборе нового шаблона все данные будут потеряны.</p>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" id="overwriteConfirmBtn">Открыть новую</button>
+                <button class="btn btn-primary" id="overwriteCancelBtn">Вернуться к последней</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно превышения лимита сохранений -->
+    <div class="modal warning-modal" id="limitExceededModal">
+        <div class="modal-content">
+            <h3 class="warning-modal-title"><span>⚠️</span><span>Лимит сохранений</span></h3>
+            <p>Достигнут лимит в 4 сметы. Выберите существующую смету для перезаписи.</p>
+            <div class="modal-select-wrap">
+                <select id="replaceSmetaSelect" class="modal-select"></select>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" id="replaceSmetaBtn">Перезаписать</button>
+                <button class="btn btn-primary" id="closeLimitModalBtn">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное уведомление об успешном сохранении -->
+    <div class="modal warning-modal" id="saveSuccessModal">
+        <div class="modal-content">
+            <h3 style="margin-bottom: 16px;">✅ Смета сохранена</h3>
+            <p>Текущая смета добавлена в список сохранённых.</p>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" id="closeSaveSuccessModalBtn">Отлично</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное уведомление об отсутствии активных сессий -->
+    <div class="modal warning-modal" id="noActiveSessionModal">
+        <div class="modal-content">
+            <h3 style="margin-bottom: 16px;">ℹ️ Нет активных сессий</h3>
+            <p>Сохраненные сметы не найдены. Создайте новую смету или выберите пресет.</p>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" id="closeNoActiveSessionModalBtn">Понятно</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно несохраненных изменений при выходе к шаблонам -->
+    <div class="modal warning-modal" id="unsavedExitModal">
+        <div class="modal-content">
+            <h3 class="warning-modal-title"><span>⚠️</span><span>Смета не сохранена</span></h3>
+            <p>Есть несохраненные изменения. Сохранить смету перед переходом к шаблонам?</p>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" id="saveBeforeExitBtn">Сохранить</button>
+                <button class="btn btn-primary" id="discardBeforeExitBtn">Не сохранять</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    "use strict";
+
+    // ---------- Состояние ----------
+    let currentSmeta = {
+        id: 'smeta1',
+        name: 'Новая смета',
+        preset: 'blank',
+        blocks: []
+    };
+    let hasUnsavedChanges = false;
+    let pendingSmetaForOverwrite = null;
+    let shouldExitToPresetsAfterSave = false;
+
+    // Список сохранённых смет (максимум 4)
+    let savedSmetas = [];
+
+    const presets = [
+        { id: 'blank', name: 'Чистый лист', icon: '📄', description: 'Полностью пустая структура' },
+        { id: 'product', name: 'Запуск продукта', icon: '🚀', description: 'Исследование, разработка, маркетинг' },
+        { id: 'build', name: 'Застройка / Лаборатория', icon: '🏗️', description: 'Проект, работы, оборудование' },
+        { id: 'scale', name: 'Масштабирование производства', icon: '📈', description: 'Анализ, закупка, модернизация' },
+        { id: 'edu', name: 'Образовательная программа', icon: '🎓', description: 'Контент, платформа, продвижение' },
+        { id: 'event', name: 'Мероприятие / Фестиваль', icon: '🎪', description: 'Площадка, оборудование, персонал' },
+        { id: 'ad', name: 'Рекламная кампания', icon: '📢', description: 'Креатив, закупки, аналитика' }
+    ];
+
+    function genId() { return Date.now() + '-' + Math.random().toString(36); }
+
+    function getPresetStructure(presetId) {
+        if (presetId === 'blank') return [];
+        const map = {
+            product: ['Исследование', 'Разработка', 'Маркетинг', 'Логистика'],
+            build: ['Проектирование', 'Строительные работы', 'Оборудование', 'Мебель'],
+            scale: ['Анализ мощностей', 'Закупка оборудования', 'Модернизация', 'Персонал'],
+            edu: ['Разработка контента', 'Платформа/Аренда', 'Продвижение', 'Оплата преподавателей', 'Администрирование'],
+            event: ['Площадка', 'Оформление', 'Оборудование', 'Персонал', 'Маркетинг'],
+            ad: ['Креатив', 'Продакшн', 'Медийные закупки', 'Аналитика']
+        };
+        return (map[presetId] || []).map(title => ({
+            id: genId(), type: 'block', title, collapsed: false, children: []
+        }));
+    }
+
+    // Нормализация чисел после загрузки из JSON
+    function normalizeSmetaNumbers(smeta) {
+        if (!smeta.blocks) return smeta;
+        smeta.blocks = smeta.blocks.map(block => normalizeBlock(block));
+        return smeta;
+    }
+    function normalizeBlock(block) {
+        if (block.children) {
+            block.children = block.children.map(child => {
+                if (child.type === 'item') {
+                    child.qty = Number(child.qty) || 0;
+                    child.price = Number(child.price) || 0;
+                } else {
+                    normalizeBlock(child);
+                }
+                return child;
+            });
+        }
+        return block;
+    }
+
+    // Инициализация темы
+    function initTheme() {
+        const saved = localStorage.getItem('estimate-theme') || 'light';
+        document.body.classList.toggle('dark', saved === 'dark');
+        document.querySelectorAll('.theme-opt').forEach(o => o.classList.toggle('active', o.dataset.theme === saved));
+    }
+    function setTheme(theme) {
+        document.body.classList.toggle('dark', theme === 'dark');
+        localStorage.setItem('estimate-theme', theme);
+        document.querySelectorAll('.theme-opt').forEach(o => o.classList.toggle('active', o.dataset.theme === theme));
+    }
+
+    // Загрузка сохранённых смет из localStorage
+    function loadSavedSmetasFromStorage() {
+        const stored = localStorage.getItem('estimate-saved-smetas');
+        if (stored) {
+            try { savedSmetas = JSON.parse(stored); } catch(e){ savedSmetas = []; }
+        } else {
+            savedSmetas = [];
+        }
+    }
+    function saveSmetasToStorage() {
+        localStorage.setItem('estimate-saved-smetas', JSON.stringify(savedSmetas));
+    }
+
+    // Рендер пресетов и сохранённых
+    const presetScreen = document.getElementById('presetScreen');
+    const editorScreen = document.getElementById('editorScreen');
+    const presetsContainer = document.getElementById('presetsContainer');
+    const savedContainer = document.getElementById('savedSmetasContainer');
+    const smetaNameInput = document.getElementById('smetaName');
+    const grandTotalSpan = document.getElementById('grandTotal');
+    const treeContainer = document.getElementById('estimateTree');
+
+    // Переменные для управления предупреждением
+    let pendingPresetId = null;
+    const warningModal = document.getElementById('overwriteWarningModal');
+    const closeWarningBtn = document.getElementById('closeWarningModalBtn');
+    const overwriteConfirmBtn = document.getElementById('overwriteConfirmBtn');
+    const overwriteCancelBtn = document.getElementById('overwriteCancelBtn');
+
+    // Модальное окно лимита
+    const limitModal = document.getElementById('limitExceededModal');
+    const closeLimitBtn = document.getElementById('closeLimitModalBtn');
+    const replaceSmetaBtn = document.getElementById('replaceSmetaBtn');
+    const replaceSmetaSelect = document.getElementById('replaceSmetaSelect');
+    const saveSuccessModal = document.getElementById('saveSuccessModal');
+    const closeSaveSuccessModalBtn = document.getElementById('closeSaveSuccessModalBtn');
+    const noActiveSessionModal = document.getElementById('noActiveSessionModal');
+    const closeNoActiveSessionModalBtn = document.getElementById('closeNoActiveSessionModalBtn');
+    const unsavedExitModal = document.getElementById('unsavedExitModal');
+    const saveBeforeExitBtn = document.getElementById('saveBeforeExitBtn');
+    const discardBeforeExitBtn = document.getElementById('discardBeforeExitBtn');
+
+    function showOverwriteWarning(presetId) {
+        pendingPresetId = presetId;
+        warningModal.classList.add('active');
+    }
+    function hideOverwriteWarning() {
+        warningModal.classList.remove('active');
+        pendingPresetId = null;
+    }
+
+    function handlePresetSelection(presetId) {
+        const saved = localStorage.getItem('estimate-last-smeta');
+        const isEditorOpen = editorScreen.style.display === 'block';
+        if (!isEditorOpen || !hasUnsavedChanges) {
+            selectPreset(presetId);
+            return;
+        }
+        if (!savedSmetas.length) {
+            if (saved) localStorage.removeItem('estimate-last-smeta');
+            selectPreset(presetId);
+            return;
+        }
+        if (saved) {
+            showOverwriteWarning(presetId);
+        } else {
+            selectPreset(presetId);
+        }
+    }
+
+    function openSmetaInEditor(smeta, shouldPersist = false) {
+        currentSmeta = normalizeSmetaNumbers(JSON.parse(JSON.stringify(smeta)));
+        smetaNameInput.value = currentSmeta.name;
+        presetScreen.style.display = 'none';
+        editorScreen.style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'auto' });
+        renderTree();
+        if (shouldPersist) saveToLocalStorage(false);
+        hasUnsavedChanges = false;
+    }
+
+    function selectPreset(presetId) {
+        const nextSmeta = {
+            id: genId(),
+            name: presets.find(p=>p.id===presetId)?.name || 'Смета',
+            preset: presetId,
+            blocks: getPresetStructure(presetId)
+        };
+        openSmetaInEditor(nextSmeta, true);
+    }
+
+    function renderPresets() {
+        presetsContainer.innerHTML = '';
+        presets.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'preset-card';
+            card.innerHTML = `<div style="font-size:32px;">${p.icon}</div><h3>${p.name}</h3><p>${p.description}</p>`;
+            card.addEventListener('click', () => handlePresetSelection(p.id));
+            presetsContainer.appendChild(card);
+        });
+    }
+
+    // Рендер блока сохранённых смет + карточка "Продолжить последнюю сессию"
+    function renderSavedSmetas() {
+        savedContainer.innerHTML = '';
+        
+        // Карточка "Продолжить последнюю сессию"
+        const continueCard = document.createElement('div');
+        continueCard.className = 'preset-card';
+        continueCard.innerHTML = `<div style="font-size:32px;">↻</div><h3>Продолжить последнюю сессию</h3><p>Вернуться к последней редактируемой смете</p>`;
+        continueCard.addEventListener('click', () => {
+            if (!savedSmetas.length) {
+                noActiveSessionModal.classList.add('active');
+                return;
+            }
+            const saved = localStorage.getItem('estimate-last-smeta');
+            if (saved) {
+                try {
+                    openSmetaInEditor(JSON.parse(saved));
+                } catch(e) {}
+            } else {
+                noActiveSessionModal.classList.add('active');
+            }
+        });
+        savedContainer.appendChild(continueCard);
+        
+        // Карточки сохранённых смет
+        savedSmetas.forEach(smeta => {
+            const card = document.createElement('div');
+            card.className = 'preset-card';
+            card.style.position = 'relative';
+            card.innerHTML = `
+                <div style="font-size:32px;">📋</div>
+                <h3>${escapeHtml(smeta.name)}</h3>
+                <p>${escapeHtml(smeta.preset ? presets.find(p=>p.id===smeta.preset)?.name || 'Смета' : 'Смета')}</p>
+                <span class="delete-card" data-smeta-id="${smeta.id}" title="Удалить смету">✕</span>
+            `;
+            card.addEventListener('click', (e) => {
+                if (e.target.classList.contains('delete-card')) return;
+                openSmetaInEditor(smeta, true);
+            });
+            card.querySelector('.delete-card').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = e.target.dataset.smetaId;
+                savedSmetas = savedSmetas.filter(s => s.id !== id);
+                saveSmetasToStorage();
+                renderSavedSmetas();
+            });
+            savedContainer.appendChild(card);
+        });
+    }
+
+    // Сохранение/загрузка последней сессии
+    function saveToLocalStorage(markUnsaved = true) {
+        localStorage.setItem('estimate-last-smeta', JSON.stringify(currentSmeta));
+        if (markUnsaved) hasUnsavedChanges = true;
+    }
+
+    function populateReplaceSmetaSelect() {
+        replaceSmetaSelect.innerHTML = '';
+        savedSmetas.forEach(s => {
+            const option = document.createElement('option');
+            option.value = s.id;
+            option.textContent = s.name || 'Без названия';
+            replaceSmetaSelect.appendChild(option);
+        });
+    }
+
+    function goToPresetScreen() {
+        editorScreen.style.display = 'none';
+        presetScreen.style.display = 'block';
+        renderSavedSmetas();
+    }
+
+    function finalizeSave(copy) {
+        saveSmetasToStorage();
+        renderSavedSmetas();
+        hasUnsavedChanges = false;
+        saveToLocalStorage(false);
+        currentSmeta.id = copy.id;
+        saveSuccessModal.classList.add('active');
+        if (shouldExitToPresetsAfterSave) {
+            shouldExitToPresetsAfterSave = false;
+            unsavedExitModal.classList.remove('active');
+            goToPresetScreen();
+        }
+    }
+
+    // Сохранить текущую смету в список сохранённых
+    function saveCurrentSmetaToCollection(options = {}) {
+        const { silent = false } = options;
+        const copy = JSON.parse(JSON.stringify(currentSmeta));
+        const existingIndex = savedSmetas.findIndex(s => s.id === copy.id);
+        
+        if (existingIndex !== -1) {
+            savedSmetas[existingIndex] = copy;
+            finalizeSave(copy);
+        } else {
+            if (savedSmetas.length >= 4) {
+                pendingSmetaForOverwrite = copy;
+                populateReplaceSmetaSelect();
+                if (shouldExitToPresetsAfterSave) {
+                    unsavedExitModal.classList.remove('active');
+                }
+                limitModal.classList.add('active');
+                return;
+            }
+            savedSmetas.push(copy);
+            finalizeSave(copy);
+        }
+        if (silent) saveSuccessModal.classList.remove('active');
+    }
+
+    // Рендер заголовка таблицы
+    function renderTableHeader() {
+        const existingHeader = treeContainer.querySelector('.tree-header');
+        if (existingHeader) existingHeader.remove();
+        const header = document.createElement('div');
+        header.className = 'tree-header';
+        
+        let html = `
+            <div style="width:24px; margin-right:12px;"></div>
+            <div class="item-name" style="flex:3; min-width:180px;">Наименование</div>
+            <div class="item-qty item-title" style="width:100px;">Кол-во</div>
+            <div class="item-unit item-title" style="width:100px;">Ед.</div>
+            <div class="item-price item-title" style="width:100px;">Цена</div>
+            <div style="width:180px; text-align:center;">Примечание</div>
+            <div style="width:100px; text-align:right; margin-left:16px;">Стоимость</div>
+            <div style="width:120px;"></div>`;
+        
+        header.innerHTML = html;
+        treeContainer.prepend(header);
+    }
+
+    // Рендер дерева
+    let sortableInstances = [];
+
+    function renderTree() {
+    	treeContainer.innerHTML = '';
+    	renderTableHeader();
+    	currentSmeta.blocks.forEach(block => treeContainer.appendChild(renderBlock(block, 0)));
+    	attachSortable();
+    	updateAllCosts();
+    	feather.replace();
+    }
+
+    function renderBlock(block, depth = 0) {
+        const div = document.createElement('div'); div.className = 'block'; div.dataset.id = block.id;
+        const header = document.createElement('div'); header.className = 'block-header';
+        header.innerHTML = `
+            <span class="collapse-icon">${block.collapsed ? '▶' : '▼'}</span>
+            <span class="drag-handle">⋮⋮</span>
+            <span class="block-title">
+                <input type="text" class="block-title-input ${depth > 0 ? 'nested-block-title-input' : ''}" value="${escapeHtml(block.title)}" placeholder="Название блока">
+            </span>
+            <span class="block-sum" data-block-id="${block.id}">0 ₽</span>
+            <div class="block-actions">
+                <span data-action="addSubBlock" title="Вложенный блок">📁</span>
+                <span data-action="addItem" title="Добавить статью">➕</span>
+                <span data-action="deleteBlock" title="Удалить">🗑️</span>
+            </div>`;
+        div.appendChild(header);
+        
+        // Устанавливаем корректную сумму блока сразу
+        const blockSumSpan = header.querySelector('.block-sum');
+        blockSumSpan.textContent = formatMoney(blockSum(block));
+        
+        const content = document.createElement('div'); content.className = 'block-content';
+        if (block.collapsed) content.style.display = 'none';
+        
+        if (block.children?.length) {
+            const list = document.createElement('div'); list.className = 'items-list';
+            block.children.forEach(child => {
+                if (child.type === 'item') list.appendChild(renderItem(child));
+                else list.appendChild(renderBlock(child, depth + 1));
+            });
+            content.appendChild(list);
+        }
+        const addItemBtn = document.createElement('div'); addItemBtn.className = 'add-btn';
+        addItemBtn.innerHTML = `<i data-feather="plus"></i> Добавить статью`;
+        addItemBtn.dataset.action = 'addItemToBlock'; addItemBtn.dataset.blockId = block.id;
+        const addBlockBtn = document.createElement('div'); addBlockBtn.className = 'add-btn';
+        addBlockBtn.innerHTML = `<i data-feather="plus-square"></i> Вложенный блок`;
+        addBlockBtn.dataset.action = 'addSubBlock'; addBlockBtn.dataset.blockId = block.id;
+        content.appendChild(addItemBtn); content.appendChild(addBlockBtn);
+        div.appendChild(content);
+        
+        header.querySelector('.collapse-icon').addEventListener('click', (e)=>{
+            e.stopPropagation(); block.collapsed = !block.collapsed; renderTree(); saveToLocalStorage();
+        });
+        const titleInput = header.querySelector('.block-title-input');
+        titleInput.addEventListener('input', () => {
+            block.title = titleInput.value;
+            saveToLocalStorage();
+        });
+        header.querySelector('[data-action="addSubBlock"]').addEventListener('click', ()=>addSubBlock(block.id));
+        header.querySelector('[data-action="addItem"]').addEventListener('click', ()=>addItemToBlock(block.id));
+        header.querySelector('[data-action="deleteBlock"]').addEventListener('click', ()=>deleteBlock(block.id));
+        return div;
+    }
+
+    function renderItem(item) {
+        const row = document.createElement('div'); row.className = 'item-row'; row.dataset.id = item.id;
+        if (item.note === undefined) item.note = '';
+        let html = `<div class="item-drag">⋮⋮</div>
+            <div class="item-field item-name"><input type="text" value="${escapeHtml(item.name)}" placeholder="Наименование"></div>
+            <div class="item-field item-qty"><input type="number" min="0" step="1" value="${item.qty||1}"></div>
+            <div class="item-field item-unit"><select>${['шт','час','день','усл','компл','м2'].map(u=>`<option ${item.unit===u?'selected':''}>${u}</option>`)}</select></div>
+            <div class="item-field item-price"><input type="number" min="0" step="0.01" value="${item.price||0}"></div>
+            <div class="item-field item-note" style="width:180px;"><input type="text" value="${escapeHtml(item.note)}" placeholder="Примечание"></div>
+            <div class="item-cost" data-item-id="${item.id}">0 ₽</div>
+            <div class="item-actions"><span data-action="deleteItem" style="cursor:pointer;">🗑️</span></div>`;
+        
+        row.innerHTML = html;
+        
+        const inputs = row.querySelectorAll('input, select');
+        const nameInp = inputs[0], qtyInp = inputs[1], unitSel = inputs[2], priceInp = inputs[3], noteInp = inputs[4];
+        nameInp.addEventListener('input', ()=>{ item.name = nameInp.value; updateAllCosts(); saveToLocalStorage(); });
+        qtyInp.addEventListener('input', ()=>{ item.qty = parseFloat(qtyInp.value)||0; updateAllCosts(); saveToLocalStorage(); });
+        priceInp.addEventListener('input', ()=>{ item.price = parseFloat(priceInp.value)||0; updateAllCosts(); saveToLocalStorage(); });
+        unitSel.addEventListener('change', ()=>{ item.unit = unitSel.value; saveToLocalStorage(); });
+        noteInp.addEventListener('input', ()=>{ item.note = noteInp.value; saveToLocalStorage(); });
+        
+        row.querySelector('[data-action="deleteItem"]').addEventListener('click', ()=>deleteItem(item.id));
+
+        // Сразу показываем актуальную стоимость
+        const costSpan = row.querySelector('.item-cost');
+        costSpan.textContent = formatMoney(itemCost(item));
+
+        return row;
+    }
+
+    function attachSortable() {
+        sortableInstances.forEach(instance => instance.destroy());
+        sortableInstances = [];
+        const lists = document.querySelectorAll('.items-list');
+        if (lists.length) {
+            lists.forEach(list => {
+                sortableInstances.push(new Sortable(list, {
+                    group: 'shared', animation: 150, handle: '.drag-handle, .item-drag',
+                    draggable: '.block, .item-row',
+                    onEnd: function() { syncModelFromDOM(); updateAllCosts(); saveToLocalStorage(); }
+                }));
+            });
+        }
+    }
+
+    function syncModelFromDOM() {
+        const blocks = [];
+        treeContainer.childNodes.forEach(el => { if (el.classList?.contains('block')) blocks.push(parseBlockFromElement(el)); });
+        currentSmeta.blocks = blocks;
+    }
+
+    function parseBlockFromElement(el) {
+        const id = el.dataset.id;
+        const existing = findBlockById(currentSmeta.blocks, id) || { title:'Блок', collapsed:false };
+        const title = el.querySelector('.block-title-input')?.value || existing.title;
+        const children = [];
+        const content = el.querySelector('.block-content');
+        const list = content?.querySelector('.items-list');
+        if (list) {
+            list.childNodes.forEach(childEl => {
+                if (childEl.classList?.contains('item-row')) children.push(parseItemFromElement(childEl));
+                else if (childEl.classList?.contains('block')) children.push(parseBlockFromElement(childEl));
+            });
+        }
+        return { id, type:'block', title, collapsed: existing.collapsed, children };
+    }
+
+    function parseItemFromElement(el) {
+        const id = el.dataset.id;
+        const existing = findItemById(currentSmeta.blocks, id) || { name:'', qty:1, unit:'шт', price:0, note:'' };
+        const inputs = el.querySelectorAll('input, select');
+        const name = inputs[0]?.value || existing.name;
+        const qty = parseFloat(inputs[1]?.value) || 0;
+        const unit = inputs[2]?.value || existing.unit;
+        const price = parseFloat(inputs[3]?.value) || 0;
+        const note = inputs[4]?.value || existing.note || '';
+        return { id, type:'item', name, qty, unit, price, note };
+    }
+
+    function findBlockById(blocks, id) {
+        for (let b of blocks) {
+            if (b.id === id) return b;
+            if (b.children) { const f = findBlockById(b.children, id); if (f) return f; }
+        }
+    }
+    function findItemById(blocks, id) {
+        for (let b of blocks) {
+            if (b.children) {
+                for (let c of b.children) {
+                    if (c.type==='item' && c.id===id) return c;
+                    if (c.type==='block') { const f = findItemById([c], id); if (f) return f; }
+                }
+            }
+        }
+    }
+    function findParent(blocks, childId) {
+        for (let b of blocks) {
+            if (b.children) {
+                const idx = b.children.findIndex(c => c.id === childId);
+                if (idx !== -1) return { parent: b, array: b.children, index: idx };
+                for (let c of b.children) {
+                    if (c.type === 'block') {
+                        const res = findParent([c], childId);
+                        if (res) return res;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    function itemCost(item) { return (item.qty||0)*(item.price||0); }
+    function blockSum(block) {
+        let s=0; block.children?.forEach(c=>{ s += c.type==='item'? itemCost(c) : blockSum(c); }); return s;
+    }
+    function updateAllCosts() {
+        document.querySelectorAll('[data-item-id]').forEach(el=>{
+            const item = findItemById(currentSmeta.blocks, el.dataset.itemId);
+            if(item) el.textContent = formatMoney(itemCost(item));
+        });
+        document.querySelectorAll('[data-block-id]').forEach(el=>{
+            const block = findBlockById(currentSmeta.blocks, el.dataset.blockId);
+            if(block) el.textContent = formatMoney(blockSum(block));
+        });
+        updateGrandTotal();
+    }
+    function updateGrandTotal() {
+    	const total = currentSmeta.blocks.reduce((acc, b) => acc + blockSum(b), 0);
+    	if (grandTotalSpan) {
+        	grandTotalSpan.textContent = formatMoney(total);
+   	}
+    }
+    function formatMoney(v) { return new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB',minimumFractionDigits:0}).format(v); }
+    function escapeHtml(t) { return String(t||'').replace(/[&<>"]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]); }
+
+    function addRootBlock() {
+        currentSmeta.blocks.push({id:genId(),type:'block',title:'Новый блок',collapsed:false,children:[]});
+        renderTree(); saveToLocalStorage();
+    }
+    function addSubBlock(parentId) {
+        const p = findBlockById(currentSmeta.blocks, parentId);
+        if (!p) return;
+        p.children.push({id:genId(),type:'block',title:'Вложенный блок',collapsed:false,children:[]});
+        renderTree(); saveToLocalStorage();
+    }
+    function addItemToBlock(blockId) {
+        const b = findBlockById(currentSmeta.blocks, blockId);
+        if (!b) return;
+        b.children.push({id:genId(),type:'item',name:'Новая статья',qty:1,unit:'шт',price:0,note:''});
+        renderTree(); saveToLocalStorage();
+    }
+    function deleteBlock(blockId) {
+        const parentInfo = findParent(currentSmeta.blocks, blockId);
+        if (parentInfo) {
+            parentInfo.array.splice(parentInfo.index, 1);
+        } else {
+            const idx = currentSmeta.blocks.findIndex(b => b.id === blockId);
+            if (idx !== -1) currentSmeta.blocks.splice(idx, 1);
+        }
+        renderTree(); saveToLocalStorage();
+    }
+    function deleteItem(itemId) {
+        const parentInfo = findParent(currentSmeta.blocks, itemId);
+        if (parentInfo) {
+            parentInfo.array.splice(parentInfo.index, 1);
+            renderTree(); saveToLocalStorage();
+        }
+    }
+
+    // Экспорт в PDF (добавлен столбец "Примечание")
+    function exportPdf() {
+        const printDiv = document.createElement('div');
+        printDiv.id = 'printContainer';
+        printDiv.className = 'print-only';
+        printDiv.style.fontFamily = 'Inter, sans-serif';
+        
+        const rows = [];
+        function traverse(blocks, level = 0) {
+            blocks.forEach(b => {
+                rows.push({ type: 'block', name: b.title, sum: blockSum(b), level });
+                if (b.children) {
+                    b.children.forEach(c => {
+                        if (c.type === 'item') {
+                            rows.push({ type: 'item', name: c.name, qty: c.qty, unit: c.unit, price: c.price, note: c.note || '', sum: itemCost(c), level: level+1 });
+                        } else {
+                            traverse([c], level+1);
+                        }
+                    });
+                }
+            });
+        }
+        traverse(currentSmeta.blocks);
+        const total = currentSmeta.blocks.reduce((acc,b)=>acc+blockSum(b),0);
+        const blockAnalytics = currentSmeta.blocks.map(b => {
+            const sum = blockSum(b);
+            const share = total > 0 ? (sum / total) * 100 : 0;
+            return { title: b.title, sum, share };
+        }).sort((a, b) => b.sum - a.sum);
+        const itemsCount = rows.filter(r => r.type === 'item').length;
+        const avgPerItem = itemsCount > 0 ? total / itemsCount : 0;
+        const topBlock = blockAnalytics[0];
+        
+        let html = `
+            <div class="print-header">
+                <h1>${escapeHtml(currentSmeta.name)}</h1>
+                <h2>Общая сумма: ${formatMoney(total)}</h2>
+            </div>
+            <table class="print-table">
+                <thead><tr><th>Наименование</th><th>Кол-во</th><th>Ед.</th><th>Цена</th><th>Примечание</th><th>Стоимость</th></tr></thead>
+                <tbody>`;
+        rows.forEach(row => {
+            if (row.type === 'block') {
+                html += `<tr class="block-row"><td><strong>${escapeHtml(row.name)}</strong></td><td></td><td></td><td></td><td></td><td>${formatMoney(row.sum)}</td></tr>`;
+            } else {
+                html += `<tr><td style="padding-left: ${20 + row.level*20}px;">${escapeHtml(row.name)}</td><td>${row.qty}</td><td>${row.unit}</td><td>${formatMoney(row.price)}</td><td>${escapeHtml(row.note)}</td><td>${formatMoney(row.sum)}</td></tr>`;
+            }
+        });
+        html += `</tbody><tfoot><tr style="font-weight:bold; background:#f1f5f9;"><td colspan="5" style="text-align:right;">ИТОГО:</td><td>${formatMoney(total)}</td></tr></tfoot></table>`;
+
+        html += `
+            <div class="print-page-break"></div>
+            <div class="print-analytics-title">Аналитика по смете</div>
+            <div class="print-analytics-grid">
+                <div class="print-analytics-item">
+                    <span class="label">Всего блоков</span>
+                    <span class="value">${blockAnalytics.length}</span>
+                </div>
+                <div class="print-analytics-item">
+                    <span class="label">Всего статей</span>
+                    <span class="value">${itemsCount}</span>
+                </div>
+                <div class="print-analytics-item">
+                    <span class="label">Средняя стоимость статьи</span>
+                    <span class="value">${formatMoney(avgPerItem)}</span>
+                </div>
+            </div>
+            <div class="print-analytics-card">
+                <strong>Крупнейший блок:</strong>
+                ${topBlock ? `${escapeHtml(topBlock.title)} (${formatMoney(topBlock.sum)}, ${topBlock.share.toFixed(1)}%)` : '—'}
+            </div>
+            <table class="print-table">
+                <thead>
+                    <tr>
+                        <th>Блок</th>
+                        <th>Доля, %</th>
+                        <th>Сумма</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        blockAnalytics.forEach(block => {
+            html += `
+                <tr>
+                    <td>${escapeHtml(block.title)}</td>
+                    <td>${block.share.toFixed(1)}%</td>
+                    <td>${formatMoney(block.sum)}</td>
+                </tr>
+            `;
+        });
+        html += `
+                </tbody>
+                <tfoot>
+                    <tr style="font-weight:bold; background:#f1f5f9;">
+                        <td style="text-align:right;" colspan="2">ИТОГО:</td>
+                        <td>${formatMoney(total)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        `;
+        printDiv.innerHTML = html;
+        document.body.appendChild(printDiv);
+        window.print();
+        setTimeout(() => { if (printDiv.parentNode) printDiv.parentNode.removeChild(printDiv); }, 100);
+    }
+
+    // Экспорт Excel (также добавлено примечание для удобства)
+    function flattenBlocks(blocks, prefix='') {
+        let rows = [];
+        blocks.forEach(b => {
+            rows.push({ type:'block', name: prefix + b.title, sum: blockSum(b) });
+            if (b.children) b.children.forEach(c => {
+                if (c.type==='item') rows.push({ type:'item', name: prefix + '  ' + c.name, qty: c.qty, unit: c.unit, price: c.price, note: c.note || '', sum: itemCost(c) });
+                else rows = rows.concat(flattenBlocks([c], prefix + '  '));
+            });
+        });
+        return rows;
+    }
+    function exportXlsx() {
+        const rows = flattenBlocks(currentSmeta.blocks);
+        const wsData = [['Тип', 'Наименование', 'Кол-во', 'Ед.', 'Цена', 'Примечание', 'Стоимость']];
+        rows.forEach(r => {
+            if (r.type==='block') wsData.push(['Блок', r.name, '', '', '', '', r.sum]);
+            else wsData.push(['Статья', r.name, r.qty, r.unit, r.price, r.note, r.sum]);
+        });
+        const total = currentSmeta.blocks.reduce((acc,b)=>acc+blockSum(b),0);
+        wsData.push(['', '', '', '', '', 'ИТОГО:', total]);
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Смета');
+        XLSX.writeFile(wb, `${currentSmeta.name}.xlsx`);
+    }
+
+    // Аналитика
+    let chartInstance = null;
+    function updateAnalytics() {
+        const ctx = document.getElementById('budgetChart').getContext('2d');
+        const blocks = currentSmeta.blocks;
+        const labels = blocks.map(b => b.title);
+        const data = blocks.map(b => blockSum(b));
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx, { type: 'pie', data: { labels, datasets: [{ data, backgroundColor: ['#0f172a','#334155','#475569','#64748b','#94a3b8'] }] } });
+        const summary = document.getElementById('analyticsSummary');
+        summary.innerHTML = `<p><strong>Итого:</strong> ${formatMoney(data.reduce((a,b)=>a+b,0))}</p>`;
+    }
+
+    // Инициализация событий
+    document.addEventListener('DOMContentLoaded', ()=>{
+        loadSavedSmetasFromStorage();
+        renderPresets();
+        renderSavedSmetas();
+        
+        const themeToggles = document.querySelectorAll('.theme-toggle');
+        themeToggles.forEach(t => {
+            t.innerHTML = `<span class="theme-opt" data-theme="light">☀️</span><span class="theme-opt" data-theme="dark">🌙</span>`;
+            t.addEventListener('click', e => {
+                const opt = e.target.closest('[data-theme]');
+                if (opt) setTheme(opt.dataset.theme);
+            });
+        });
+        initTheme();
+        
+        document.getElementById('backToPresets').addEventListener('click', ()=>{
+            if (hasUnsavedChanges) {
+                unsavedExitModal.classList.add('active');
+                return;
+            }
+            goToPresetScreen();
+        });
+        smetaNameInput.addEventListener('input', ()=>{ currentSmeta.name = smetaNameInput.value; saveToLocalStorage(); });
+        document.getElementById('addRootBlockBtn').addEventListener('click', addRootBlock);
+        document.getElementById('saveSmetaBtn').addEventListener('click', saveCurrentSmetaToCollection);
+        
+        document.getElementById('exportDropdownBtn').addEventListener('click', ()=>{
+            const menu = document.getElementById('exportMenu');
+            menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+        });
+        document.getElementById('exportXlsx').addEventListener('click', ()=>{ exportXlsx(); document.getElementById('exportMenu').style.display='none'; });
+        document.getElementById('exportPdf').addEventListener('click', ()=>{ exportPdf(); document.getElementById('exportMenu').style.display='none'; });
+        document.getElementById('showAnalyticsBtn').addEventListener('click', ()=>{
+            document.getElementById('analyticsPanel').classList.add('open');
+            updateAnalytics();
+        });
+        document.getElementById('closeAnalytics').addEventListener('click', ()=>document.getElementById('analyticsPanel').classList.remove('open'));
+        document.addEventListener('click', (e) => {
+            const analyticsPanel = document.getElementById('analyticsPanel');
+            const analyticsBtn = document.getElementById('showAnalyticsBtn');
+            if (!analyticsPanel.classList.contains('open')) return;
+            if (analyticsPanel.contains(e.target) || analyticsBtn.contains(e.target)) return;
+            analyticsPanel.classList.remove('open');
+        });
+        
+        treeContainer.addEventListener('click', (e)=>{
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            if (action === 'addItemToBlock') addItemToBlock(btn.dataset.blockId);
+            else if (action === 'addSubBlock') addSubBlock(btn.dataset.blockId);
+        });
+
+        // Модальное окно предупреждения
+        overwriteConfirmBtn.addEventListener('click', () => {
+            if (pendingPresetId) {
+                localStorage.removeItem('estimate-last-smeta');
+                selectPreset(pendingPresetId);
+            }
+            hideOverwriteWarning();
+        });
+        overwriteCancelBtn.addEventListener('click', () => {
+            hideOverwriteWarning();
+            if (!savedSmetas.length) {
+                localStorage.removeItem('estimate-last-smeta');
+                noActiveSessionModal.classList.add('active');
+                return;
+            }
+            const saved = localStorage.getItem('estimate-last-smeta');
+            if (saved) {
+                try {
+                    openSmetaInEditor(JSON.parse(saved));
+                } catch(e) {}
+            } else {
+                noActiveSessionModal.classList.add('active');
+            }
+        });
+        closeWarningBtn.addEventListener('click', hideOverwriteWarning);
+        warningModal.addEventListener('click', (e) => {
+            if (e.target === warningModal) hideOverwriteWarning();
+        });
+
+        // Модальное окно лимита
+        closeLimitBtn.addEventListener('click', () => {
+            pendingSmetaForOverwrite = null;
+            shouldExitToPresetsAfterSave = false;
+            limitModal.classList.remove('active');
+        });
+        limitModal.addEventListener('click', (e) => {
+            if (e.target === limitModal) {
+                pendingSmetaForOverwrite = null;
+                shouldExitToPresetsAfterSave = false;
+                limitModal.classList.remove('active');
+            }
+        });
+        replaceSmetaBtn.addEventListener('click', () => {
+            if (!pendingSmetaForOverwrite) return;
+            const targetId = replaceSmetaSelect.value;
+            const targetIndex = savedSmetas.findIndex(s => s.id === targetId);
+            if (targetIndex === -1) return;
+            pendingSmetaForOverwrite.id = savedSmetas[targetIndex].id;
+            savedSmetas[targetIndex] = pendingSmetaForOverwrite;
+            const persistedCopy = JSON.parse(JSON.stringify(pendingSmetaForOverwrite));
+            pendingSmetaForOverwrite = null;
+            limitModal.classList.remove('active');
+            finalizeSave(persistedCopy);
+        });
+
+        // Модальное окно успешного сохранения
+        closeSaveSuccessModalBtn.addEventListener('click', () => saveSuccessModal.classList.remove('active'));
+        saveSuccessModal.addEventListener('click', (e) => {
+            if (e.target === saveSuccessModal) saveSuccessModal.classList.remove('active');
+        });
+        closeNoActiveSessionModalBtn.addEventListener('click', () => noActiveSessionModal.classList.remove('active'));
+        noActiveSessionModal.addEventListener('click', (e) => {
+            if (e.target === noActiveSessionModal) noActiveSessionModal.classList.remove('active');
+        });
+        saveBeforeExitBtn.addEventListener('click', () => {
+            shouldExitToPresetsAfterSave = true;
+            unsavedExitModal.classList.remove('active');
+            saveCurrentSmetaToCollection({ silent: true });
+            if (limitModal.classList.contains('active')) return;
+        });
+        discardBeforeExitBtn.addEventListener('click', () => {
+            hasUnsavedChanges = false;
+            shouldExitToPresetsAfterSave = false;
+            unsavedExitModal.classList.remove('active');
+            goToPresetScreen();
+        });
+        unsavedExitModal.addEventListener('click', (e) => {
+            if (e.target === unsavedExitModal) unsavedExitModal.classList.remove('active');
+        });
+
+        feather.replace();
+    });
+})();
+</script>
+</body>
+</html>
