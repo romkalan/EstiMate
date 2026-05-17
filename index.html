@@ -2,7 +2,12 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="EstiMate — бесплатный конструктор смет в браузере. Иерархическая структура, drag & drop, экспорт в Excel и PDF, аналитика.">
+    <meta property="og:title" content="EstiMate · универсальный конструктор смет">
+    <meta property="og:description" content="Создавайте сметы без установки — шаблоны, редактирование, экспорт.">
+    <meta property="og:type" content="website">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
     <title>EstiMate · универсальный конструктор смет</title>
     <!-- Библиотеки -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -106,7 +111,7 @@
         }
         .block-title-input:focus { border-bottom-color: var(--accent); }
         .block-title-input.nested-block-title-input { width: 50%; }
-        .block-sum { font-family:monospace; margin-right:20px; color:var(--text-secondary); }
+        .block-sum { font-family:'SF Mono','Cascadia Code','Menlo',monospace; margin-right:20px; color:var(--text-secondary); }
 
         input, select {
             background: var(--input-bg);
@@ -161,7 +166,7 @@
         .item-qty, .item-price, .item-unit { width:100px }
         .item-qty input, .item-price input, .item-unit select { width:100%; background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 10px; text-align:right; color:var(--text); }
         .item-unit select { text-align:right; }
-        .item-cost { width:120px; text-align:right; font-family:monospace; margin: 0; flex-shrink: 0; }
+        .item-cost { width:120px; text-align:right; font-family:'SF Mono','Cascadia Code','Menlo',monospace; margin: 0; flex-shrink: 0; }
         .item-note input { width: 180px; }
         .item-title { text-align:center; margin: 0; }
         .add-btn { margin:8px 20px 8px 48px; color:var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
@@ -325,20 +330,28 @@
             color: var(--bg);
             opacity: 0.92;
         }
-        /* В модалке несохраненных изменений обе кнопки выглядят единообразно */
-        #overwriteWarningModal .modal-buttons .btn,
+        /* В модалке несохраненных изменений кнопки разных стилей */
         #overwriteWarningModal .modal-buttons .btn.btn-primary {
             min-width: 190px;
             background: var(--accent);
             color: var(--bg);
             border: 1px solid var(--accent);
         }
-        #overwriteWarningModal .modal-buttons .btn:hover,
         #overwriteWarningModal .modal-buttons .btn.btn-primary:hover {
             background: var(--accent);
             border-color: var(--accent);
             color: var(--bg);
             opacity: 0.92;
+        }
+        #overwriteWarningModal .modal-buttons .btn:not(.btn-primary) {
+            min-width: 190px;
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        #overwriteWarningModal .modal-buttons .btn:not(.btn-primary):hover {
+            background: var(--hover);
+            border-color: var(--accent);
         }
         body.dark .warning-modal .btn:hover {
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
@@ -438,7 +451,7 @@
             <p>У вас есть несохранённые изменения в текущей смете. При выборе нового шаблона все данные будут потеряны.</p>
             <div class="modal-buttons">
                 <button class="btn btn-primary" id="overwriteConfirmBtn">Открыть новую</button>
-                <button class="btn btn-primary" id="overwriteCancelBtn">Вернуться к последней</button>
+                <button class="btn" id="overwriteCancelBtn">Вернуться к последней</button>
             </div>
         </div>
     </div>
@@ -453,7 +466,7 @@
             </div>
             <div class="modal-buttons">
                 <button class="btn btn-primary" id="replaceSmetaBtn">Перезаписать</button>
-                <button class="btn btn-primary" id="closeLimitModalBtn">Отмена</button>
+                <button class="btn" id="closeLimitModalBtn">Отмена</button>
             </div>
         </div>
     </div>
@@ -487,7 +500,7 @@
             <p>Есть несохраненные изменения. Сохранить смету перед переходом к шаблонам?</p>
             <div class="modal-buttons">
                 <button class="btn btn-primary" id="saveBeforeExitBtn">Сохранить</button>
-                <button class="btn btn-primary" id="discardBeforeExitBtn">Не сохранять</button>
+                <button class="btn" id="discardBeforeExitBtn">Не сохранять</button>
             </div>
         </div>
     </div>
@@ -575,7 +588,7 @@
     function loadSavedSmetasFromStorage() {
         const stored = localStorage.getItem('estimate-saved-smetas');
         if (stored) {
-            try { savedSmetas = JSON.parse(stored); } catch(e){ savedSmetas = []; }
+            try { savedSmetas = JSON.parse(stored); } catch(e){ console.warn('EstiMate: ошибка парсинга сохранённых смет', e); savedSmetas = []; }
         } else {
             savedSmetas = [];
         }
@@ -690,7 +703,7 @@
             if (saved) {
                 try {
                     openSmetaInEditor(JSON.parse(saved));
-                } catch(e) {}
+                } catch(e) { console.warn('EstiMate: ошибка восстановления сессии', e); }
             } else {
                 noActiveSessionModal.classList.add('active');
             }
@@ -926,12 +939,14 @@
 
     function parseBlockFromElement(el) {
         const id = el.dataset.id;
-        const existing = findBlockById(currentSmeta.blocks, id) || { title:'Блок', collapsed:false };
+        const existing = findBlockById(currentSmeta.blocks, id) || { title:'Блок', collapsed:false, children:[] };
         const title = el.querySelector('.block-title-input')?.value || existing.title;
-        const children = [];
         const content = el.querySelector('.block-content');
         const list = content?.querySelector('.items-list');
-        if (list) {
+        let children = [];
+        if (existing.collapsed && content?.style.display === 'none') {
+            children = existing.children.map(ch => JSON.parse(JSON.stringify(ch)));
+        } else if (list) {
             list.childNodes.forEach(childEl => {
                 if (childEl.classList?.contains('item-row')) children.push(parseItemFromElement(childEl));
                 else if (childEl.classList?.contains('block')) children.push(parseBlockFromElement(childEl));
@@ -1183,7 +1198,7 @@
         const labels = blocks.map(b => b.title);
         const data = blocks.map(b => blockSum(b));
         if (chartInstance) chartInstance.destroy();
-        chartInstance = new Chart(ctx, { type: 'pie', data: { labels, datasets: [{ data, backgroundColor: ['#0f172a','#334155','#475569','#64748b','#94a3b8'] }] } });
+        const chartColors = ['#0f172a','#1e293b','#334155','#475569','#64748b','#94a3b8','#cbd5e1','#e2e8f0']; chartInstance = new Chart(ctx, { type: 'pie', data: { labels, datasets: [{ data, backgroundColor: blocks.map((_,i)=>chartColors[i%chartColors.length]) }] } });
         const summary = document.getElementById('analyticsSummary');
         summary.innerHTML = `<p><strong>Итого:</strong> ${formatMoney(data.reduce((a,b)=>a+b,0))}</p>`;
     }
@@ -1226,13 +1241,6 @@
             updateAnalytics();
         });
         document.getElementById('closeAnalytics').addEventListener('click', ()=>document.getElementById('analyticsPanel').classList.remove('open'));
-        document.addEventListener('click', (e) => {
-            const analyticsPanel = document.getElementById('analyticsPanel');
-            const analyticsBtn = document.getElementById('showAnalyticsBtn');
-            if (!analyticsPanel.classList.contains('open')) return;
-            if (analyticsPanel.contains(e.target) || analyticsBtn.contains(e.target)) return;
-            analyticsPanel.classList.remove('open');
-        });
         
         treeContainer.addEventListener('click', (e)=>{
             const btn = e.target.closest('[data-action]');
@@ -1261,7 +1269,7 @@
             if (saved) {
                 try {
                     openSmetaInEditor(JSON.parse(saved));
-                } catch(e) {}
+                } catch(e) { console.warn('EstiMate: ошибка восстановления сессии', e); }
             } else {
                 noActiveSessionModal.classList.add('active');
             }
@@ -1321,6 +1329,28 @@
         unsavedExitModal.addEventListener('click', (e) => {
             if (e.target === unsavedExitModal) unsavedExitModal.classList.remove('active');
         });
+
+        // Escape для модалок
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
+                document.getElementById('analyticsPanel').classList.remove('open');
+                document.getElementById('exportMenu').style.display = 'none';
+            }
+        });
+
+        // Валидация числовых полей (blur)
+        treeContainer.addEventListener('blur', (e) => {
+            const input = e.target;
+            if (input.tagName !== 'INPUT' || input.type !== 'number') return;
+            const min = parseFloat(input.getAttribute('min'));
+            const max = parseFloat(input.getAttribute('max'));
+            let val = parseFloat(input.value);
+            if (isNaN(val)) val = 0;
+            if (!isNaN(min)) val = Math.max(min, val);
+            if (!isNaN(max)) val = Math.min(max, val);
+            input.value = val;
+        }, true);
 
         feather.replace();
     });
